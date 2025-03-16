@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import Image from "next/image";
+
 import { config } from "@/config";
 
 // TypeScript interfaces for our data structures
@@ -273,9 +273,6 @@ export default function Home() {
     Record<string, PnLHistoryItem[]>
   >({});
   const [realTimeEnabled, setRealTimeEnabled] = useState<boolean>(true); // Toggle for real-time simulation
-  const [simulationMode, setSimulationMode] = useState<"enhance" | "off">(
-    "enhance"
-  ); // Mode for real-time simulation
 
   // Track if profit has increased or decreased
   const prevNetPnLRef = useRef<number>(0);
@@ -337,8 +334,10 @@ export default function Home() {
         case "initialAccounts":
           if (data.accounts) {
             // Mark data as real since it's coming from the server
+            //eslint-disable-next-line @typescript-eslint/no-explicit-any
             const accountsWithRealFlag = data.accounts.map((account: any) => {
               if (account.positions) {
+                //eslint-disable-next-line @typescript-eslint/no-explicit-any
                 account.positions = account.positions.map((pos: any) => ({
                   ...pos,
                   isRealData: true,
@@ -423,12 +422,7 @@ export default function Home() {
 
   // Improved simulation which only enhances real data with small interpolations between server updates
   useEffect(() => {
-    if (
-      !realTimeEnabled ||
-      !selectedAccountData?.positions ||
-      simulationMode === "off"
-    )
-      return;
+    if (!realTimeEnabled || !selectedAccountData?.positions) return;
 
     // Create small price movements every 500ms for a more real-time feel - faster than before
     const interval = setInterval(() => {
@@ -497,12 +491,7 @@ export default function Home() {
     }, 500);
 
     return () => clearInterval(interval);
-  }, [
-    selectedAccount,
-    selectedAccountData?.positions,
-    realTimeEnabled,
-    simulationMode,
-  ]);
+  }, [selectedAccount, selectedAccountData?.positions, realTimeEnabled]);
 
   // Calculate Net PnL whenever selected account or its positions change
   useEffect(() => {
@@ -548,6 +537,7 @@ export default function Home() {
   }, [selectedAccountData?.positions]);
 
   // Enhanced helper functions for updating state based on WebSocket messages
+  //eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateAccountInfo = (data: any) => {
     setAccounts((prevAccounts) =>
       prevAccounts.map((account) =>
@@ -561,6 +551,7 @@ export default function Home() {
     );
   };
 
+  //eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updatePositions = (data: any) => {
     // More sophisticated position update logic
     if (data.event === "positionUpdated" && data.position) {
@@ -627,6 +618,7 @@ export default function Home() {
       console.log("All positions updated for account:", data.accountId);
       // Mark all positions as real data
       if (data.positions) {
+        //eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.positions = data.positions.map((pos: any) => ({
           ...pos,
           isRealData: true,
@@ -637,6 +629,7 @@ export default function Home() {
     }
   };
 
+  //eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateOrders = (data: any) => {
     // Simplified - in a real app you'd update the specific order
     refreshAccountDetails(data.accountId);
@@ -675,6 +668,7 @@ export default function Home() {
 
           // Mark positions as real data
           if (data.positions) {
+            //eslint-disable-next-line @typescript-eslint/no-explicit-any
             data.positions = data.positions.map((pos: any) => ({
               ...pos,
               isRealData: true,
