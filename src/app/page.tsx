@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 import { config } from "@/config";
 
 // TypeScript interfaces for our data structures
@@ -286,11 +287,19 @@ export default function Home() {
   // Add new state variables for auto-refresh functionality
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
 
   // Get the selected account data
   const selectedAccountData = accounts.find(
     (acc) => acc.accountId === selectedAccount
   );
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   // Fetch accounts on initial load
   useEffect(() => {
