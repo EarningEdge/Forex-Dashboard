@@ -112,10 +112,13 @@ const AccountModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +237,6 @@ const AccountModal = ({
               placeholder="e.g. My Trading Account"
             />
           </div>
-
           <div className="flex items-center justify-end">
             <button
               type="button"
@@ -270,6 +272,10 @@ export default function Home() {
   const [pnlBySymbol, setPnlBySymbol] = useState<Record<string, number>>({});
   const [lastPriceUpdate, setLastPriceUpdate] = useState<number>(Date.now());
   const [pnlHistory, setPnlHistory] = useState<PnLHistoryItem[]>([]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+const [logoutError, setLogoutError] = useState<string | null>(null);
+const router = useRouter();
+const { logout } = useAuth();
   const [pnlHistoryBySymbol, setPnlHistoryBySymbol] = useState<
     Record<string, PnLHistoryItem[]>
   >({});
@@ -288,7 +294,6 @@ export default function Home() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
 
   // Get the selected account data
   const selectedAccountData = accounts.find(
@@ -659,6 +664,21 @@ export default function Home() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      setLogoutError(null);
+      setIsLoggingOut(true);
+
+      // Assuming your useAuth hook has a logout method
+      await logout(); // Replace with your actual logout method from useAuth
+      router.push("/login");
+    } catch (err) {
+      setLogoutError(err instanceof Error ? err.message : "Logout failed");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   // Update refreshAccountDetails to include a source parameter to log where the refresh came from
   const refreshAccountDetails = useCallback(
     async (accountId: string, source: "auto" | "manual" = "manual") => {
@@ -974,6 +994,43 @@ export default function Home() {
                 ))}
               </ul>
             )}
+
+            <div className="mt-auto pt-4 border-t border-gray-800">
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="w-full bg-gray-800 hover:bg-red-800/50 text-red-400 py-2 px-4 rounded-md flex items-center justify-center transition-all duration-300"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4 mr-2"
+                      viewBox="0 0 24 24"
+                    >
+                      {/* Loading spinner SVG */}
+                    </svg>
+                    Logging Out...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                      />
+                    </svg>
+                    Log Out
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Main Content Area */}
