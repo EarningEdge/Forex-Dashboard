@@ -667,6 +667,7 @@ const { logout } = useAuth();
   const handleLogout = async () => {
     try {
       setLogoutError(null);
+      console.log(logoutError)
       setIsLoggingOut(true);
 
       // Assuming your useAuth hook has a logout method
