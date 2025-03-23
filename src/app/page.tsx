@@ -4,13 +4,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { config } from "@/config";
 
-// TypeScript interfaces for our data structures
 interface AccountInfo {
   name?: string;
   login?: string;
   balance?: number;
   equity?: number;
   marginLevel?: number;
+  type?: string;
+  platform?: string;
+  broker?: string;
 }
 
 interface Position {
@@ -35,6 +37,19 @@ interface Order {
   volume: number;
   openPrice: number;
   state: string;
+}
+
+// Add interfaces for order and deal history
+interface HistoryItem {
+  id: string;
+  type: string;
+  symbol: string;
+  volume: number;
+  price: number;
+  time: string;
+  commission?: number;
+  swap?: number;
+  profit?: number;
 }
 
 interface AccountData {
@@ -280,6 +295,46 @@ const { logout } = useAuth();
     Record<string, PnLHistoryItem[]>
   >({});
   const [realTimeEnabled, setRealTimeEnabled] = useState<boolean>(true); // Toggle for real-time simulation
+
+  // Add new state variables for order and deal history
+  const [orderHistory, setOrderHistory] = useState<HistoryItem[]>([]);
+  const [dealHistory, setDealHistory] = useState<HistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [activeHistoryTab, setActiveHistoryTab] = useState<"orders" | "deals">(
+    "orders"
+  );
+
+  // Remove history filters state and add search state
+  const [accountSearch, setAccountSearch] = useState<string>("");
+
+  // Add account type filter
+  const [accountTypeFilter, setAccountTypeFilter] = useState<
+    "all" | "demo" | "real"
+  >("all");
+
+  // Filter accounts based on search input and account type
+  const filteredAccounts = accounts.filter((account) => {
+    const searchTerm = accountSearch.toLowerCase();
+    const accountName = account.accountInfo?.name?.toLowerCase() || "";
+    const accountLogin =
+      account.accountInfo?.login?.toString().toLowerCase() || "";
+    const accountType = account.accountInfo?.type || "";
+
+    // First filter by search term
+    const matchesSearchTerm =
+      accountName.includes(searchTerm) || accountLogin.includes(searchTerm);
+
+    // Then filter by account type if not "all"
+    const matchesAccountType =
+      accountTypeFilter === "all" ||
+      (accountTypeFilter === "demo" &&
+        accountType === "ACCOUNT_TRADE_MODE_DEMO") ||
+      (accountTypeFilter === "real" &&
+        accountType === "ACCOUNT_TRADE_MODE_REAL");
+
+    return matchesSearchTerm && matchesAccountType;
+  });
 
   // Track if profit has increased or decreased
   const prevNetPnLRef = useRef<number>(0);
@@ -754,11 +809,82 @@ const { logout } = useAuth();
     };
   }, [selectedAccount, autoRefreshEnabled, refreshAccountDetails]);
 
-  // Then define the other functions that use refreshAccountDetails
-  // Function to fetch and view the details of a specific account
+  // Function to fetch order history
+  const fetchOrderHistory = async (accountId: string) => {
+    try {
+      setLoadingHistory(true);
+      setHistoryError(null);
+
+      const response = await fetch(
+        `${config.server}/accounts/${accountId}/order-history`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch order history");
+      }
+
+      const data = await response.json();
+      setOrderHistory(data);
+    } catch (err) {
+      console.error(
+        "Error fetching order history:",
+        err instanceof Error ? err.message : err
+      );
+      setHistoryError(
+        err instanceof Error ? err.message : "Failed to fetch order history"
+      );
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Function to fetch deal history
+  const fetchDealHistory = async (accountId: string) => {
+    try {
+      setLoadingHistory(true);
+      setHistoryError(null);
+
+      const response = await fetch(
+        `${config.server}/accounts/${accountId}/deal-history`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch deal history");
+      }
+
+      const data = await response.json();
+      setDealHistory(data);
+    } catch (err) {
+      console.error(
+        "Error fetching deal history:",
+        err instanceof Error ? err.message : err
+      );
+      setHistoryError(
+        err instanceof Error ? err.message : "Failed to fetch deal history"
+      );
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Function to toggle between order and deal history tabs
+  const toggleHistoryTab = (tab: "orders" | "deals") => {
+    setActiveHistoryTab(tab);
+    if (selectedAccount) {
+      if (tab === "orders") {
+        fetchOrderHistory(selectedAccount);
+      } else {
+        fetchDealHistory(selectedAccount);
+      }
+    }
+  };
+
+  // Modify the viewAccountDetails to also fetch history
   const viewAccountDetails = async (accountId: string) => {
     setSelectedAccount(accountId);
     await refreshAccountDetails(accountId);
+    // Load order history by default
+    fetchOrderHistory(accountId);
   };
 
   // Function to add a new trading account
@@ -957,13 +1083,98 @@ const { logout } = useAuth();
             <h2 className="text-xl font-semibold mb-4 text-white">
               Trading Accounts
             </h2>
-            {accounts.length === 0 ? (
+
+            {/* Account type filter tabs */}
+            <div className="flex border-b border-gray-700 mb-4">
+              <button
+                className={`py-2 px-3 text-xs font-medium ${
+                  accountTypeFilter === "all"
+                    ? "text-blue-400 border-b-2 border-blue-400"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+                onClick={() => setAccountTypeFilter("all")}
+              >
+                All Accounts
+                <span className="ml-1 bg-gray-700 px-1.5 rounded-full text-xs">
+                  {accounts.length}
+                </span>
+              </button>
+              <button
+                className={`py-2 px-3 text-xs font-medium ${
+                  accountTypeFilter === "real"
+                    ? "text-blue-400 border-b-2 border-blue-400"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+                onClick={() => setAccountTypeFilter("real")}
+              >
+                Real
+                <span className="ml-1 bg-gray-700 px-1.5 rounded-full text-xs">
+                  {
+                    accounts.filter(
+                      (acc) =>
+                        acc.accountInfo?.type === "ACCOUNT_TRADE_MODE_REAL"
+                    ).length
+                  }
+                </span>
+              </button>
+              <button
+                className={`py-2 px-3 text-xs font-medium ${
+                  accountTypeFilter === "demo"
+                    ? "text-blue-400 border-b-2 border-blue-400"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+                onClick={() => setAccountTypeFilter("demo")}
+              >
+                Demo
+                <span className="ml-1 bg-gray-700 px-1.5 rounded-full text-xs">
+                  {
+                    accounts.filter(
+                      (acc) =>
+                        acc.accountInfo?.type === "ACCOUNT_TRADE_MODE_DEMO"
+                    ).length
+                  }
+                </span>
+              </button>
+            </div>
+
+            {/* Add search box for accounts */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name or account number"
+                  value={accountSearch}
+                  onChange={(e) => setAccountSearch(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded w-full py-2 px-3 pl-10 text-gray-200 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="absolute left-3 top-2.5 text-gray-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {filteredAccounts.length === 0 ? (
               <p className="text-gray-400">
-                No accounts connected. Add an account to get started.
+                {accounts.length === 0
+                  ? "No accounts connected. Add an account to get started."
+                  : "No accounts match your search."}
               </p>
             ) : (
               <ul className="space-y-2">
-                {accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <li
                     key={account.accountId}
                     className={`p-3 rounded-md cursor-pointer transition duration-200 ${
@@ -979,9 +1190,26 @@ const { logout } = useAuth();
                           {account.accountInfo?.name ||
                             `Account ${account.accountId.slice(0, 8)}...`}
                         </p>
-                        <p className="text-sm text-gray-400">
-                          {account.accountInfo?.login}
-                        </p>
+                        <div className="flex items-center">
+                          <p className="text-sm text-gray-400">
+                            {account.accountInfo?.login}
+                          </p>
+                          {account.accountInfo?.type && (
+                            <span
+                              className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                account.accountInfo.type ===
+                                "ACCOUNT_TRADE_MODE_DEMO"
+                                  ? "bg-blue-900/50 text-blue-300 border border-blue-700"
+                                  : "bg-green-900/50 text-green-300 border border-green-700"
+                              }`}
+                            >
+                              {account.accountInfo.type ===
+                              "ACCOUNT_TRADE_MODE_DEMO"
+                                ? "Demo"
+                                : "Real"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div
                         className={`h-3 w-3 rounded-full ${
@@ -1041,13 +1269,30 @@ const { logout } = useAuth();
                 {/* Account Overview */}
                 <div className="bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-800 mb-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-white">
-                      {selectedAccountData.accountInfo?.name ||
-                        `Account ${selectedAccountData.accountId.slice(
-                          0,
-                          8
-                        )}...`}
-                    </h2>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white">
+                        {selectedAccountData.accountInfo?.name ||
+                          `Account ${selectedAccountData.accountId.slice(
+                            0,
+                            8
+                          )}...`}
+                      </h2>
+                      {selectedAccountData.accountInfo?.type && (
+                        <span
+                          className={`mt-1 inline-block text-sm px-2 py-0.5 rounded ${
+                            selectedAccountData.accountInfo.type ===
+                            "ACCOUNT_TRADE_MODE_DEMO"
+                              ? "bg-blue-900/50 text-blue-300 border border-blue-700"
+                              : "bg-green-900/50 text-green-300 border border-green-700"
+                          }`}
+                        >
+                          {selectedAccountData.accountInfo.type ===
+                          "ACCOUNT_TRADE_MODE_DEMO"
+                            ? "Demo Account"
+                            : "Real Account"}
+                        </span>
+                      )}
+                    </div>
                     <button
                       className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-200"
                       onClick={() =>
@@ -1079,6 +1324,40 @@ const { logout } = useAuth();
                           2
                         ) || "0.00"}
                         %
+                      </p>
+                    </div>
+                    <div
+                      className={`bg-gray-800 p-4 rounded-md border ${
+                        selectedAccountData.accountInfo?.type ===
+                        "ACCOUNT_TRADE_MODE_DEMO"
+                          ? "border-blue-700"
+                          : "border-green-700"
+                      }`}
+                    >
+                      <p className="text-gray-400 text-sm">Account Details</p>
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-sm ${
+                            selectedAccountData.accountInfo?.type ===
+                            "ACCOUNT_TRADE_MODE_DEMO"
+                              ? "bg-blue-900/50 text-blue-300"
+                              : "bg-green-900/50 text-green-300"
+                          }`}
+                        >
+                          {selectedAccountData.accountInfo?.type ===
+                          "ACCOUNT_TRADE_MODE_DEMO"
+                            ? "Demo"
+                            : "Real"}
+                        </span>
+                        {selectedAccountData.accountInfo?.platform && (
+                          <span className="bg-gray-700 px-2 py-0.5 rounded text-sm text-gray-300">
+                            {selectedAccountData.accountInfo.platform.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {selectedAccountData.accountInfo?.broker ||
+                          "Unknown Broker"}
                       </p>
                     </div>
                     <div className="bg-gray-800 p-4 rounded-md border border-gray-700">
@@ -1488,6 +1767,187 @@ const { logout } = useAuth();
                     </div>
                   ) : (
                     <p className="text-gray-400">No pending orders</p>
+                  )}
+                </div>
+
+                {/* History section */}
+                <div className="bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-800 mb-6 mt-6">
+                  <h3 className="text-xl font-semibold mb-4 text-white">
+                    Trading History
+                  </h3>
+
+                  {/* Tab navigation */}
+                  <div className="flex border-b border-gray-700 mb-4">
+                    <button
+                      className={`py-2 px-4 text-sm font-medium ${
+                        activeHistoryTab === "orders"
+                          ? "text-blue-400 border-b-2 border-blue-400"
+                          : "text-gray-400 hover:text-gray-300"
+                      }`}
+                      onClick={() => toggleHistoryTab("orders")}
+                    >
+                      Order History
+                    </button>
+                    <button
+                      className={`py-2 px-4 text-sm font-medium ${
+                        activeHistoryTab === "deals"
+                          ? "text-blue-400 border-b-2 border-blue-400"
+                          : "text-gray-400 hover:text-gray-300"
+                      }`}
+                      onClick={() => toggleHistoryTab("deals")}
+                    >
+                      Deal History
+                    </button>
+                  </div>
+
+                  {/* History table */}
+                  {historyError ? (
+                    <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded mb-4">
+                      {historyError}
+                    </div>
+                  ) : loadingHistory ? (
+                    <div className="text-center py-10 text-gray-300">
+                      Loading history...
+                    </div>
+                  ) : activeHistoryTab === "orders" ? (
+                    // Order history table
+                    orderHistory.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead className="bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Date & Time
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Order ID
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Symbol
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Type
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Volume
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Price
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-700">
+                            {orderHistory.map((item) => (
+                              <tr
+                                key={item.id}
+                                className="hover:bg-gray-800/50"
+                              >
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {new Date(item.time).toLocaleString()}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {item.id}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {item.symbol}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {item.type}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {item.volume}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                  {item.price}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400">
+                        No order history available
+                      </p>
+                    )
+                  ) : // Deal history table
+                  dealHistory.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead className="bg-gray-800">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Date & Time
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Deal ID
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Symbol
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Type
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Volume
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Price
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Commission
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Swap
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                              Profit
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700">
+                          {dealHistory.map((item) => (
+                            <tr key={item.id} className="hover:bg-gray-800/50">
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {new Date(item.time).toLocaleString()}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.id}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.symbol}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.type}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.volume}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.price}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.commission?.toFixed(2) || "0.00"}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap text-gray-300">
+                                {item.swap?.toFixed(2) || "0.00"}
+                              </td>
+                              <td
+                                className={`px-4 py-2 whitespace-nowrap font-medium ${
+                                  Number(item.profit || 0) >= 0
+                                    ? "text-emerald-400"
+                                    : "text-rose-400"
+                                }`}
+                              >
+                                {item.profit?.toFixed(2) || "0.00"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-400">No deal history available</p>
                   )}
                 </div>
 
