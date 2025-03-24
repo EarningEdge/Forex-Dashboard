@@ -302,7 +302,7 @@ const { logout } = useAuth();
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"orders" | "deals">(
-    "orders"
+    "orders"  
   );
 
   // Remove history filters state and add search state
