@@ -23,22 +23,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     verifyAuth();
   }, []);
 
-  const verifyAuth = async () => {
-    try {
-      const response = await fetch(`${config.server}/verify`, {
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setIsAuthenticated(data.authenticated);
-      }
-    } catch (error) {
-      console.error("Verification error:", error);
-    } finally {
-      setIsLoading(false);
+  const verifyAuth = () => {
+    const token = localStorage.getItem("authToken");
+  
+    if (token) {
+      console.log("Token found in localStorage:", token);
+      setIsAuthenticated(true);
+    } else {
+      console.log("No token found in localStorage");
+      setIsAuthenticated(false);
     }
+  
+    setIsLoading(false);
   };
+  
+
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -49,20 +48,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ admin_email: email, admin_password: password }),
-        credentials: "include",
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Login failed");
       }
-
+  
+      const data = await response.json();
+      localStorage.setItem("authToken", data.token); // Store token in localStorage
       setIsAuthenticated(true);
       router.push("/");
+    } catch (error) {
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
   };
+  
 
   const logout = async () => {
     setIsLoading(true);
