@@ -3,6 +3,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { config } from "@/config";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface AccountInfo {
   name?: string;
@@ -127,13 +137,10 @@ const AccountModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,9 +295,9 @@ export default function Home() {
   const [lastPriceUpdate, setLastPriceUpdate] = useState<number>(Date.now());
   const [pnlHistory, setPnlHistory] = useState<PnLHistoryItem[]>([]);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-const [logoutError, setLogoutError] = useState<string | null>(null);
-const router = useRouter();
-const { logout } = useAuth();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const router = useRouter();
+  const { logout } = useAuth();
   const [pnlHistoryBySymbol, setPnlHistoryBySymbol] = useState<
     Record<string, PnLHistoryItem[]>
   >({});
@@ -302,8 +309,9 @@ const { logout } = useAuth();
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [activeHistoryTab, setActiveHistoryTab] = useState<"orders" | "deals">(
-    "orders"  
+    "orders"
   );
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
 
   // Remove history filters state and add search state
   const [accountSearch, setAccountSearch] = useState<string>("");
@@ -722,7 +730,7 @@ const { logout } = useAuth();
   const handleLogout = async () => {
     try {
       setLogoutError(null);
-      console.log(logoutError)
+      console.log(logoutError);
       setIsLoggingOut(true);
 
       // Assuming your useAuth hook has a logout method
@@ -952,112 +960,131 @@ const { logout } = useAuth();
         <h1 className="text-3xl font-bold text-center text-white bg-gradient-to-r from-white via-gray-400 to-gray-800 bg-clip-text text-transparent">
           EarningEdge Dashboard
         </h1>
-        <div className="flex justify-between items-center mt-4">
-          <div className="flex items-center space-x-4">
-            <p className="text-sm">
-              {wsConnected ? (
-                <span className="text-emerald-400">● WebSocket Connected</span>
-              ) : (
-                <span className="text-red-400">● WebSocket Disconnected</span>
-              )}
-            </p>
-            <div className="flex items-center space-x-2">
-              <p className="text-xs text-gray-400">
-                Last update: {new Date(lastPriceUpdate).toLocaleTimeString()}
+        <div className="flex flex-col md:flex-row justify-between items-center mt-4 space-y-4 md:space-y-0">
+          <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-4 w-full">
+            {/* WebSocket Connection Status */}
+            <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-4 w-full">
+              <p className="text-sm">
+                {wsConnected ? (
+                  <span className="text-emerald-400">
+                    ● WebSocket Connected
+                  </span>
+                ) : (
+                  <span className="text-red-400">● WebSocket Disconnected</span>
+                )}
               </p>
-              {lastRealDataUpdate && (
-                <p
-                  className="text-xs text-blue-400"
-                  title="Last time real data was fetched from server"
-                >
-                  Real data: {new Date(lastRealDataUpdate).toLocaleTimeString()}
-                </p>
-              )}
-              <div className="flex items-center space-x-2">
-                <button
-                  className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
-                    realTimeEnabled
-                      ? "bg-emerald-800 text-emerald-300 hover:bg-emerald-700"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                  }`}
-                  onClick={() => setRealTimeEnabled(!realTimeEnabled)}
-                  title="Enable/disable live price interpolation between server updates"
-                >
-                  <span className="flex items-center">
-                    {realTimeEnabled ? (
-                      <>
-                        <span className="inline-block h-2 w-2 bg-emerald-400 rounded-full animate-pulse mr-1"></span>
-                        Real-time Enhanced
-                      </>
-                    ) : (
-                      "Server Updates Only"
-                    )}
-                  </span>
-                </button>
-                <button
-                  className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
-                    autoRefreshEnabled
-                      ? "bg-blue-800 text-blue-300 hover:bg-blue-700"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                  }`}
-                  onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-                  title={
-                    autoRefreshEnabled
-                      ? "Disable auto-refresh"
-                      : "Enable auto-refresh every 3.5 seconds"
-                  }
-                >
-                  <span className="flex items-center">
-                    {autoRefreshEnabled ? (
-                      <>
-                        <span className="inline-block h-2 w-2 bg-blue-400 rounded-full animate-pulse mr-1"></span>
-                        Auto (3.5s)
-                        {isRefreshing && (
-                          <span className="ml-1 text-xs">↻</span>
-                        )}
-                      </>
-                    ) : (
-                      "Auto Off"
-                    )}
-                  </span>
-                </button>
-                <button
-                  className={`bg-blue-700 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded transition-colors duration-300 flex items-center ${
-                    isRefreshing ? "opacity-50" : ""
-                  }`}
-                  onClick={() =>
-                    selectedAccount && refreshAccountDetails(selectedAccount)
-                  }
-                  disabled={!selectedAccount || isRefreshing}
-                  title="Fetch latest data from server"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-3 w-3 mr-1 ${
-                      isRefreshing ? "animate-spin" : ""
+
+              {/* Update Times and Controls Container */}
+              <div className="flex flex-col md:flex-row items-start md:items-center space-y-2 md:space-y-0 md:space-x-2 w-full">
+                <div className="flex flex-wrap items-center space-x-2">
+                  <p className="text-xs text-gray-400">
+                    Last update:{" "}
+                    {new Date(lastPriceUpdate).toLocaleTimeString()}
+                  </p>
+                  {lastRealDataUpdate && (
+                    <p
+                      className="text-xs text-blue-400"
+                      title="Last time real data was fetched from server"
+                    >
+                      Real data:{" "}
+                      {new Date(lastRealDataUpdate).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Buttons Container - Wrapped and Responsive */}
+                <div className="flex flex-wrap gap-2 items-center justify-start w-full">
+                  <button
+                    className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                      realTimeEnabled
+                        ? "bg-emerald-800 text-emerald-300 hover:bg-emerald-700"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
                     }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                    onClick={() => setRealTimeEnabled(!realTimeEnabled)}
+                    title="Enable/disable live price interpolation between server updates"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                  {isRefreshing ? "Refreshing..." : "Manual Refresh"}
-                </button>
+                    <span className="flex items-center">
+                      {realTimeEnabled ? (
+                        <>
+                          <span className="inline-block h-2 w-2 bg-emerald-400 rounded-full animate-pulse mr-1"></span>
+                          Real-time Enhanced
+                        </>
+                      ) : (
+                        "Server Updates Only"
+                      )}
+                    </span>
+                  </button>
+
+                  <button
+                    className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                      autoRefreshEnabled
+                        ? "bg-blue-800 text-blue-300 hover:bg-blue-700"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    }`}
+                    onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                    title={
+                      autoRefreshEnabled
+                        ? "Disable auto-refresh"
+                        : "Enable auto-refresh every 3.5 seconds"
+                    }
+                  >
+                    <span className="flex items-center">
+                      {autoRefreshEnabled ? (
+                        <>
+                          <span className="inline-block h-2 w-2 bg-blue-400 rounded-full animate-pulse mr-1"></span>
+                          Auto (3.5s)
+                          {isRefreshing && (
+                            <span className="ml-1 text-xs">↻</span>
+                          )}
+                        </>
+                      ) : (
+                        "Auto Off"
+                      )}
+                    </span>
+                  </button>
+
+                  <button
+                    className={`bg-blue-700 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded transition-colors duration-300 flex items-center ${
+                      isRefreshing ? "opacity-50" : ""
+                    }`}
+                    onClick={() =>
+                      selectedAccount && refreshAccountDetails(selectedAccount)
+                    }
+                    disabled={!selectedAccount || isRefreshing}
+                    title="Fetch latest data from server"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-3 w-3 mr-1 ${
+                        isRefreshing ? "animate-spin" : ""
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    {isRefreshing ? "Refreshing..." : "Manual Refresh"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-          <button
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-200"
-            onClick={() => setIsModalOpen(true)}
-          >
-            Add Account
-          </button>
+
+          {/* Add Account Button - Responsive Positioning */}
+          <div className="w-full md:w-auto flex justify-start md:justify-end">
+            <button
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-[6px] px-3 rounded-md shadow-lg transition duration-200 w-full md:min-w-[120px] text-sm"
+              onClick={() => setIsModalOpen(true)}
+            >
+              Add Account
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1077,12 +1104,90 @@ const { logout } = useAuth();
           Error: {error}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="h-screen grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto scrollbar-hide">
           {/* Accounts Sidebar */}
-          <div className="md:col-span-1 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4 text-white">
-              Trading Accounts
-            </h2>
+          <div
+            className="h-full overflow-y-hidden scrollbar-hide md:col-span-1 bg-gray-900 p-4 rounded-lg border border-gray-800 shadow-lg"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">
+                Trading Accounts
+              </h2>
+              <Dialog
+                open={isLogoutDialogOpen}
+                onOpenChange={setIsLogoutDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <button
+                    disabled={isLoggingOut}
+                    className="bg-gray-800 hover:bg-red-800/50 text-red-400 py-1 px-2 rounded-md flex items-center justify-center transition-all duration-300"
+                  >
+                    {isLoggingOut ? (
+                      <>
+                        <svg
+                          className="animate-spin h-4 w-4 mr-2"
+                          viewBox="0 0 24 24"
+                        >
+                          {/* Loading spinner SVG */}
+                        </svg>
+                        Logging Out...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        Log Out
+                      </>
+                    )}
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px] bg-gray-900 text-gray-200 border-gray-800">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">
+                      Confirm Logout
+                    </DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                      Are you sure you want to log out? You'll need to sign in
+                      again to access your dashboard.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {logoutError && (
+                    <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded">
+                      {logoutError}
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsLogoutDialogOpen(false)}
+                      className="bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-700"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      {isLoggingOut ? "Logging Out..." : "Log Out"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
 
             {/* Account type filter tabs */}
             <div className="flex border-b border-gray-700 mb-4">
@@ -1137,7 +1242,7 @@ const { logout } = useAuth();
               </button>
             </div>
 
-            {/* Add search box for accounts */}
+            {/* Search box for accounts */}
             <div className="mb-4">
               <div className="relative">
                 <input
@@ -1166,104 +1271,75 @@ const { logout } = useAuth();
               </div>
             </div>
 
-            {filteredAccounts.length === 0 ? (
-              <p className="text-gray-400">
-                {accounts.length === 0
-                  ? "No accounts connected. Add an account to get started."
-                  : "No accounts match your search."}
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {filteredAccounts.map((account) => (
-                  <li
-                    key={account.accountId}
-                    className={`p-3 rounded-md cursor-pointer transition duration-200 ${
-                      selectedAccount === account.accountId
-                        ? "bg-blue-900/30 border-l-4 border-blue-500"
-                        : "hover:bg-gray-800 border-l-4 border-transparent"
-                    }`}
-                    onClick={() => viewAccountDetails(account.accountId)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium text-white">
-                          {account.accountInfo?.name ||
-                            `Account ${account.accountId.slice(0, 8)}...`}
-                        </p>
-                        <div className="flex items-center">
-                          <p className="text-sm text-gray-400">
-                            {account.accountInfo?.login}
+            <div
+              className="overflow-y-auto scrollbar-hide h-full"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {filteredAccounts.length === 0 ? (
+                <p className="text-gray-400">
+                  {accounts.length === 0
+                    ? "No accounts connected. Add an account to get started."
+                    : "No accounts match your search."}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {filteredAccounts.map((account) => (
+                    <li
+                      key={account.accountId}
+                      className={`p-3 rounded-md cursor-pointer transition duration-200 ${
+                        selectedAccount === account.accountId
+                          ? "bg-blue-900/30 border-l-4 border-blue-500"
+                          : "hover:bg-gray-800 border-l-4 border-transparent"
+                      }`}
+                      onClick={() => viewAccountDetails(account.accountId)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-white">
+                            {account.accountInfo?.name ||
+                              `Account ${account.accountId.slice(0, 8)}...`}
                           </p>
-                          {account.accountInfo?.type && (
-                            <span
-                              className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                                account.accountInfo.type ===
+                          <div className="flex items-center">
+                            <p className="text-sm text-gray-400">
+                              {account.accountInfo?.login}
+                            </p>
+                            {account.accountInfo?.type && (
+                              <span
+                                className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                  account.accountInfo.type ===
+                                  "ACCOUNT_TRADE_MODE_DEMO"
+                                    ? "bg-blue-900/50 text-blue-300 border border-blue-700"
+                                    : "bg-green-900/50 text-green-300 border border-green-700"
+                                }`}
+                              >
+                                {account.accountInfo.type ===
                                 "ACCOUNT_TRADE_MODE_DEMO"
-                                  ? "bg-blue-900/50 text-blue-300 border border-blue-700"
-                                  : "bg-green-900/50 text-green-300 border border-green-700"
-                              }`}
-                            >
-                              {account.accountInfo.type ===
-                              "ACCOUNT_TRADE_MODE_DEMO"
-                                ? "Demo"
-                                : "Real"}
-                            </span>
-                          )}
+                                  ? "Demo"
+                                  : "Real"}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <div
+                          className={`h-3 w-3 rounded-full ${
+                            account.connectedToBroker
+                              ? "bg-emerald-500"
+                              : "bg-red-500"
+                          }`}
+                        ></div>
                       </div>
-                      <div
-                        className={`h-3 w-3 rounded-full ${
-                          account.connectedToBroker
-                            ? "bg-emerald-500"
-                            : "bg-red-500"
-                        }`}
-                      ></div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="mt-auto pt-4 border-t border-gray-800">
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="w-full bg-gray-800 hover:bg-red-800/50 text-red-400 py-2 px-4 rounded-md flex items-center justify-center transition-all duration-300"
-              >
-                {isLoggingOut ? (
-                  <>
-                    <svg
-                      className="animate-spin h-4 w-4 mr-2"
-                      viewBox="0 0 24 24"
-                    >
-                      {/* Loading spinner SVG */}
-                    </svg>
-                    Logging Out...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    Log Out
-                  </>
-                )}
-              </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
           {/* Main Content Area */}
-          <div className="md:col-span-3">
+          <div
+            className="h-full overflow-y-auto scrollbar-hide md:col-span-3"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
             {selectedAccountData ? (
               <div>
                 {/* Account Overview */}
